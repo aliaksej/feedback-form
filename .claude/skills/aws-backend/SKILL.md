@@ -22,7 +22,7 @@ Validate with a schema library (e.g. zod) as the single source of truth for fiel
 
 ## Parquet and S3
 
-- S3 objects are immutable, so there is no true append. Prefer writing **one new object per submission (or batch)** under a partitioned key, e.g. `feedback/dt=YYYY-MM-DD/<uuid>.parquet`. This avoids read-modify-write races under concurrent invocations and is directly queryable by Athena/Glue. Consolidate small files in a separate compaction job if needed. If the user insists on a single shared file, flag the concurrency and data-loss risk.
+- The project uses **one shared Parquet file** (key from `OBJECT_KEY`), updated by read-modify-write in `src/storage.ts` with conditional writes (`If-Match`/`If-None-Match`) and retries. Keep that guard on any change to it. It rewrites the whole file per submission, so if volume grows, move to one object per submission under a partitioned key (e.g. `feedback/dt=YYYY-MM-DD/<uuid>.parquet`), which is also directly queryable by Athena/Glue.
 - Define an explicit Parquet schema (column names, types, nullability); do not infer it from arbitrary input. Store timestamps as proper timestamp types in UTC.
 - Choose a Parquet library that runs on the Lambda runtime and architecture (arm64 vs x86_64). Prefer pure JS/WASM (e.g. `hyparquet-writer`, `parquet-wasm`) over native bindings, and verify that bundling includes it.
 - Set `ContentType` appropriately and use server-side encryption defaults from the bucket.
@@ -35,4 +35,4 @@ Validate with a schema library (e.g. zod) as the single source of truth for fiel
 
 ## Before finishing
 
-Run the project's typecheck, lint and test scripts, and confirm the bundle builds (see `package.json`; update CLAUDE.md if commands are missing there).
+From `backend/`, run `npm run build` (typecheck + bundle) and `npm test`. The IAM the Lambda needs (`GetObject`/`PutObject` on the key, `ListBucket` on the bucket) lives in `infra/template.yaml`; update it if storage access changes.

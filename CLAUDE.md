@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Early stage: `frontend/` and `infra/` exist. The Lambda code (`backend/`) is not yet created; that section describes the intended design.
+Early stage: `frontend/`, `infra/` and `backend/` exist. Nothing has been deployed yet.
 
 ## Purpose
 
@@ -15,12 +15,14 @@ A webpage with a feedback form. Submissions are sent to an AWS Lambda endpoint, 
 Data flow: `React form` → HTTPS → `Lambda endpoint` → `S3 bucket (Parquet)`
 
 - **Frontend**: React single-page app containing the feedback form. It posts to the Lambda endpoint (e.g. Function URL or API Gateway; not yet decided). Lives in [frontend/](frontend/) (Vite + React + TypeScript, npm, its own `package.json`). The endpoint URL is never hardcoded (see Frontend config).
-- **Lambda**: TypeScript. Validates the payload, converts the feedback records to Parquet, and writes them to S3. Note that S3 objects are immutable, so "putting info into a file" means either writing a new Parquet object per submission/batch or read-modify-write on a shared file. The approach should be an explicit design decision, with concurrency in mind.
-- **Infrastructure**: All AWS resources (Lambda, endpoint, S3 bucket, IAM, CORS config, etc.) are defined as Infrastructure as Code. Never create or change resources by hand in the console. Tool: plain **CloudFormation** in [infra/template.yaml](infra/template.yaml) (single stack per environment, `feedback-form-<env>`): S3 data bucket (retained), Lambda + log group + least-privilege role, Lambda Function URL with CORS limited to `AllowedOrigin`. The Lambda's `Code: ../backend/dist` is replaced with an S3 location by `aws cloudformation package`, so `backend/` must build into `backend/dist/` (handler `index.handler`) before deploying.
+- **Lambda** ([backend/](backend/), TypeScript, esbuild bundle to `backend/dist/index.js`): validates `{ message }` with zod ([schema.ts](backend/src/schema.ts) is the source of truth), then appends a row (`id`, `created_at`, `message`) to **one shared Parquet file** whose key comes from the `OBJECT_KEY` env var (bucket from `BUCKET_NAME`; both set by the CloudFormation template). S3 has no append, so [storage.ts](backend/src/storage.ts) does read-modify-write guarded by conditional writes (`If-Match` ETag / `If-None-Match: *`) and retries on 412/409. This rewrites the whole file per submission, so it suits low volume; switch to one object per submission if volume grows. Parquet via pure-JS `hyparquet`/`hyparquet-writer`; `@aws-sdk/*` is left external (provided by the Lambda runtime).
+- **Infrastructure**: All AWS resources (Lambda, endpoint, S3 bucket, IAM, CORS config, etc.) are defined as Infrastructure as Code. Never create or change resources by hand in the console. Tool: plain **CloudFormation** in [infra/template.yaml](infra/template.yaml) (single stack per environment, `feedback-form-<env>`): S3 data bucket (retained), Lambda + log group + least-privilege role, Lambda Function URL with CORS limited to `AllowedOrigin`. The Lambda's `Code: ../backend/dist` is replaced with an S3 location by `aws cloudformation package`, so run `npm run build` in `backend/` before deploying.
 
 ## Commands
 
-Run from `frontend/`:
+Backend (from `backend/`): `npm run build` (typecheck + bundle), `npm run typecheck`, `npm test` (single file: `npx vitest run src/storage.test.ts`).
+
+Frontend (from `frontend/`):
 
 - `npm run dev` — dev server
 - `npm run build` — typecheck + production build to `dist/`

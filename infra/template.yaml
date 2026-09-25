@@ -10,6 +10,11 @@ Parameters:
     Type: String
     Default: http://localhost:5173
     Description: Frontend origin allowed by CORS (scheme + host, no trailing slash). Never use '*'.
+  FeedbackObjectKey:
+    Type: String
+    Default: feedback/feedback.parquet
+    AllowedPattern: ^feedback/[A-Za-z0-9._/-]+\.parquet$
+    Description: S3 key of the Parquet file the Lambda creates/updates (passed to it as OBJECT_KEY).
   LogRetentionDays:
     Type: Number
     Default: 30
@@ -84,8 +89,18 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: s3:PutObject
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
                 Resource: !Sub ${DataBucket.Arn}/feedback/*
+              # Without ListBucket, S3 answers 403 instead of 404 for a missing
+              # key, so the Lambda could not tell "create" from "denied".
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt DataBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix: feedback/*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
@@ -112,6 +127,7 @@ Resources:
       Environment:
         Variables:
           BUCKET_NAME: !Ref DataBucket
+          OBJECT_KEY: !Ref FeedbackObjectKey
 
   FunctionUrl:
     Type: AWS::Lambda::Url
