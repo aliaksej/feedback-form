@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Early stage: only the `frontend/` scaffold exists. The Lambda and infrastructure are not yet created; those sections describe the intended design. Add their commands here when scaffolded.
+Early stage: `frontend/` and `infra/` exist. The Lambda code (`backend/`) is not yet created; that section describes the intended design.
 
 ## Purpose
 
@@ -16,7 +16,7 @@ Data flow: `React form` → HTTPS → `Lambda endpoint` → `S3 bucket (Parquet)
 
 - **Frontend**: React single-page app containing the feedback form. It posts to the Lambda endpoint (e.g. Function URL or API Gateway; not yet decided). Lives in [frontend/](frontend/) (Vite + React + TypeScript, npm, its own `package.json`). The endpoint URL is never hardcoded (see Frontend config).
 - **Lambda**: TypeScript. Validates the payload, converts the feedback records to Parquet, and writes them to S3. Note that S3 objects are immutable, so "putting info into a file" means either writing a new Parquet object per submission/batch or read-modify-write on a shared file. The approach should be an explicit design decision, with concurrency in mind.
-- **Infrastructure**: All AWS resources (Lambda, endpoint, S3 bucket, IAM, CORS config, etc.) are defined as Infrastructure as Code. Never create or change resources by hand in the console. The IaC tool (CDK, Terraform, SAM, etc.) is not yet chosen; record the choice here once made.
+- **Infrastructure**: All AWS resources (Lambda, endpoint, S3 bucket, IAM, CORS config, etc.) are defined as Infrastructure as Code. Never create or change resources by hand in the console. Tool: plain **CloudFormation** in [infra/template.yaml](infra/template.yaml) (single stack per environment, `feedback-form-<env>`): S3 data bucket (retained), Lambda + log group + least-privilege role, Lambda Function URL with CORS limited to `AllowedOrigin`. The Lambda's `Code: ../backend/dist` is replaced with an S3 location by `aws cloudformation package`, so `backend/` must build into `backend/dist/` (handler `index.handler`) before deploying.
 
 ## Commands
 
@@ -26,6 +26,11 @@ Run from `frontend/`:
 - `npm run build` — typecheck + production build to `dist/`
 - `npm run typecheck`
 - `npm test` — vitest, all tests; single file: `npx vitest run src/config.test.ts`; by name: `npx vitest run -t "<name>"`
+
+Infra (from `infra/`):
+
+- `cfn-lint template.yaml` — lint (`pip install cfn-lint`)
+- `scripts/deploy.sh <dev|prod> <allowed-origin> <artifact-bucket>` — package, deploy, and write the endpoint URL into `frontend/public/config.json`. Deploys real AWS resources; only run with user approval.
 
 ## Frontend config
 

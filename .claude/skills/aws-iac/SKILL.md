@@ -7,7 +7,7 @@ description: Rules for defining and changing AWS infrastructure as code in this 
 
 All AWS resources are defined in code. Never create or modify resources through the console or ad-hoc CLI calls; if something was changed manually, reconcile it back into code.
 
-The IaC tool (CDK, Terraform or SAM) is not yet chosen. Check the repo for an existing infra directory first, and follow that tool's idioms. If none exists, ask the user which to use before scaffolding, then record the choice in CLAUDE.md.
+The IaC tool is plain **CloudFormation**, in `infra/template.yaml` (deployed via `infra/scripts/deploy.sh`). Do not introduce CDK/Terraform/SAM transforms without asking. Lint with `cfn-lint template.yaml` after every change.
 
 ## Resources in scope
 
@@ -28,5 +28,5 @@ The IaC tool (CDK, Terraform or SAM) is not yet chosen. Check the repo for an ex
 ## Workflow
 
 1. Change the infra code.
-2. Run the tool's validation and preview (`cdk diff` / `terraform plan` / `sam validate`), and show the diff to the user.
+2. Run the tool's validation and preview (`cfn-lint`, and `aws cloudformation deploy --no-execute-changeset` for a change set), and show the diff to the user.
 3. Do not deploy or apply without explicit user approval; deploys change real AWS resources.
