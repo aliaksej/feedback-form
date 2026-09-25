@@ -12,9 +12,9 @@ The IaC tool is plain **CloudFormation**, in `infra/template.yaml` (deployed via
 ## Resources in scope
 
 - Lambda function (TypeScript, bundled), its log group with explicit retention, and its execution role.
-- HTTPS endpoint (Lambda Function URL or API Gateway) with CORS restricted to the frontend origin, not `*`.
+- HTTPS endpoint (Lambda Function URL) with CORS restricted to the CloudFront site origin (and an optional dev origin), not `*`.
 - S3 bucket for Parquet data: block all public access, server-side encryption, versioning if appropriate, TLS-only bucket policy, and a lifecycle policy.
-- Frontend hosting (e.g. S3 + CloudFront), if in scope.
+- Frontend hosting: private S3 bucket + CloudFront (Origin Access Control, HTTPS only). Never make the site bucket public. A custom domain (ACM cert in us-east-1 + DNS) is not set up yet.
 
 ## Rules
 

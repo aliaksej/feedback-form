@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
-# Usage: scripts/deploy.sh <dev|prod> <allowed-origin> <artifact-bucket>
-# Packages ../backend/dist to the artifact bucket, deploys the stack and
-# writes the resulting endpoint into ../frontend/public/config.json.
+# Usage: scripts/deploy.sh <dev|prod> <artifact-bucket> [extra-allowed-origin]
+# Packages ../backend/dist to the artifact bucket and deploys the stack
+# (frontend hosting, Lambda, data bucket). Deploy the site itself afterwards
+# with scripts/deploy-frontend.sh.
+# extra-allowed-origin is optional, e.g. http://localhost:5173 for local dev.
 set -euo pipefail
 
 ENV="${1:?environment (dev|prod)}"
-ORIGIN="${2:?allowed origin, e.g. https://feedback.example.com}"
-ARTIFACT_BUCKET="${3:?S3 bucket for Lambda artifacts}"
+ARTIFACT_BUCKET="${2:?S3 bucket for Lambda artifacts}"
+EXTRA_ORIGIN="${3:-}"
 STACK="feedback-form-${ENV}"
 cd "$(dirname "$0")/.."
+
+(cd ../backend && npm ci && npm run build)
 
 aws cloudformation package \
   --template-file template.yaml \
@@ -19,9 +23,7 @@ aws cloudformation deploy \
   --template-file packaged.yaml \
   --stack-name "$STACK" \
   --capabilities CAPABILITY_IAM \
-  --parameter-overrides Environment="$ENV" AllowedOrigin="$ORIGIN"
+  --parameter-overrides Environment="$ENV" ExtraAllowedOrigin="$EXTRA_ORIGIN"
 
-API_URL=$(aws cloudformation describe-stacks --stack-name "$STACK" \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
-printf '{\n  "apiUrl": "%s"\n}\n' "$API_URL" > ../frontend/public/config.json
-echo "apiUrl = $API_URL"
+aws cloudformation describe-stacks --stack-name "$STACK" \
+  --query "Stacks[0].Outputs[].[OutputKey,OutputValue]" --output text
