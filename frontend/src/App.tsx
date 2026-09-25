@@ -1,4 +1,6 @@
-import { Container, CssBaseline, Typography } from '@mui/material';
+import Container from '@mui/material/Container';
+import CssBaseline from '@mui/material/CssBaseline';
+import Typography from '@mui/material/Typography';
 import type { AppConfig } from './config';
 import { FeedbackForm } from './FeedbackForm';
 
